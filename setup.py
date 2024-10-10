@@ -14,6 +14,7 @@ from torch.utils.cpp_extension import (
     CUDAExtension,
     BuildExtension,
     CUDA_HOME,
+    ROCM_HOME,
 )
 
 library_name = "extension_cpp"
@@ -22,11 +23,13 @@ library_name = "extension_cpp"
 def get_extensions():
     debug_mode = os.getenv("DEBUG", "0") == "1"
     use_cuda = os.getenv("USE_CUDA", "1") == "1"
+    use_rocm = os.getenv("USE_ROCM", "0") == "1"
     if debug_mode:
         print("Compiling in debug mode")
 
     use_cuda = use_cuda and torch.cuda.is_available() and CUDA_HOME is not None
-    extension = CUDAExtension if use_cuda else CppExtension
+    use_rocm = use_rocm and torch.cuda.is_available() and ROCM_HOME is not None
+    extension = CUDAExtension if use_cuda or use_rocm else CppExtension
 
     extra_link_args = []
     extra_compile_args = {
