@@ -53,7 +53,7 @@ def get_extensions():
     extensions_cuda_dir = os.path.join(extensions_dir, "cuda")
     cuda_sources = list(glob.glob(os.path.join(extensions_cuda_dir, "*.cu")))
 
-    if use_cuda:
+    if use_cuda or use_rocm:
         sources += cuda_sources
 
     ext_modules = [
