@@ -2,7 +2,7 @@ from typing import Tuple
 import torch
 from torch import Tensor
 
-__all__ = ["lltm", "reference_lltm"]
+__all__ = ["lltm", "reference_lltm", "mymuladd", "myadd_out"]
 
 
 def lltm(
@@ -76,3 +76,60 @@ def reference_lltm(
     new_h = torch.tanh(new_cell) * output_gate
 
     return new_h, new_cell
+
+
+# (Additional) mymul and mymulladd
+
+class MyMulAddFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(a, b, c):
+        return torch.ops.extension_cpp.mymuladd.default(a, b, c)
+
+    @staticmethod
+    def setup_context(ctx, inputs, output):
+        a, b, c = inputs
+        saved_a, saved_b = None, None
+        if ctx.needs_input_grad[0]:
+            saved_b = b
+        if ctx.needs_input_grad[1]:
+            saved_a = a
+        ctx.save_for_backward(saved_a, saved_b)
+
+
+    @staticmethod
+    @torch.autograd.function.once_differentiable
+    def backward(ctx, grad):
+        a, b = ctx.saved_tensors
+        grad_a, grad_b = None, None
+        if ctx.needs_input_grad[0]:
+            grad_a = torch.ops.extension_cpp.mymul.default(grad, b)
+        if ctx.needs_input_grad[1]:
+            grad_b = torch.ops.extension_cpp.mymul.default(grad, a)
+        return grad_a, grad_b, None
+
+
+def mymuladd(a: Tensor, b: Tensor, c: float) -> Tensor:
+    return MyMulAddFunction.apply(a, b, c)
+
+
+@torch.library.impl_abstract("extension_cpp::mymuladd")
+def _(a, b, c):
+    torch._check(a.shape == b.shape)
+    torch._check(a.dtype == torch.float)
+    torch._check(b.dtype == torch.float)
+    torch._check(a.device == b.device)
+    return torch.empty_like(a)
+
+
+@torch.library.impl_abstract("extension_cpp::mymul")
+def _(a, b):
+    torch._check(a.shape == b.shape)
+    torch._check(a.dtype == torch.float)
+    torch._check(b.dtype == torch.float)
+    torch._check(a.device == b.device)
+    return torch.empty_like(a)
+
+
+def myadd_out(a: Tensor, b: Tensor, out: Tensor) -> None:
+    """Write a + b into out"""
+    torch.ops.extension_cpp.myadd_out.default(a, b, out)
