@@ -9,6 +9,6 @@ test:
 
 clean: 
 	pip uninstall extension-cpp -y
-	rm -rf build/ dist/ extension-cpp.egg-info/
+	rm -rf build/ dist/ extension-cpp.egg-info/ extension_cpp/csrc/hip
 
 .PHONY: build install test	
