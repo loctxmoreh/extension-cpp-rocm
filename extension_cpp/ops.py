@@ -97,7 +97,7 @@ class MyMulAddFunction(torch.autograd.Function):
 
 
     @staticmethod
-    @torch.autograd.function.once_differentiable
+    @torch.autograd.function.once_differentiable    # TODO(loctran): remove this and implement double backward
     def backward(ctx, grad):
         a, b = ctx.saved_tensors
         grad_a, grad_b = None, None
@@ -108,8 +108,41 @@ class MyMulAddFunction(torch.autograd.Function):
         return grad_a, grad_b, None
 
 
+class MyMullFunction(torch.autograd.Function):
+    @staticmethod 
+    def forward(a, b):
+        return torch.ops.extension_cpp.mymul.default(a, b)
+
+    
+    @staticmethod
+    def setup_context(ctx, inputs, output):
+        a, b = inputs
+        saved_a, saved_b = None, None
+        if ctx.needs_input_grad[0]:
+            saved_b = b
+        if ctx.needs_input_grad[1]:
+            saved_a = a
+        ctx.save_for_backward(saved_a, saved_b)
+
+
+    @staticmethod
+    @torch.autograd.function.once_differentiable    # TODO(loctran): remove this and implement double backward
+    def backward(ctx, grad):
+        a, b = ctx.saved_tensors
+        grad_a, grad_b = None, None
+        if ctx.needs_input_grad[0]:
+            grad_a = torch.ops.extension_cpp.mymul.default(grad, b)
+        if ctx.needs_input_grad[1]:
+            grad_b = torch.ops.extension_cpp.mymul.default(grad, a)
+        return grad_a, grad_b
+
+
 def mymuladd(a: Tensor, b: Tensor, c: float) -> Tensor:
     return MyMulAddFunction.apply(a, b, c)
+
+
+def mymul(a: Tensor, b: Tensor) -> Tensor:
+    return MyMulFunction.apply(a, b)
 
 
 @torch.library.impl_abstract("extension_cpp::mymuladd")
